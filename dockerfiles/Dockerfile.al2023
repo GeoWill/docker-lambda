@@ -59,7 +59,7 @@ RUN mkdir /tmp/libxml2 \
   && rm -rf /tmp/libxml2
 
 # nghttp2
-ENV NGHTTP2_VERSION=1.42.0
+ENV NGHTTP2_VERSION=1.68.0
 RUN mkdir /tmp/nghttp2 \
   && curl -sfL https://github.com/nghttp2/nghttp2/releases/download/v${NGHTTP2_VERSION}/nghttp2-${NGHTTP2_VERSION}.tar.gz | tar zxf - -C /tmp/nghttp2 --strip-components=1 \
   && cd /tmp/nghttp2 \
