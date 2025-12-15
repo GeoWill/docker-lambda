@@ -1,14 +1,16 @@
-FROM public.ecr.aws/lambda/provided:al2 AS builder
+FROM public.ecr.aws/lambda/provided:al2023 AS builder
 
 LABEL maintainer="lambgeo <geolambdas@gmail.com>"
 
-RUN yum update -y && \
-    yum install -y git autoconf libtool flex bison cmake make \
-      tar gzip gcc gcc-c++ automake16 libpng-devel nasm \
-      libxml2-devel readline-devel openssl-devel curl-devel \
-      cmake3 && \
-    yum clean all && \
-    rm -rf /var/cache/yum /var/lib/yum/history
+# AL2023 uses dnf instead of yum, and automake instead of automake16
+# cmake is available directly (not cmake3)
+# libtirpc-devel provides RPC headers needed by HDF4
+RUN dnf update -y && \
+    dnf install -y git autoconf libtool flex bison cmake make \
+      tar gzip gcc gcc-c++ automake libpng-devel nasm libtirpc-devel \
+      libxml2-devel readline-devel openssl-devel curl-devel && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 ENV PREFIX=/opt
 
@@ -58,7 +60,7 @@ RUN mkdir /tmp/libxml2 \
   && rm -rf /tmp/libxml2
 
 # nghttp2
-ENV NGHTTP2_VERSION=1.42.0
+ENV NGHTTP2_VERSION=1.68.0
 RUN mkdir /tmp/nghttp2 \
   && curl -sfL https://github.com/nghttp2/nghttp2/releases/download/v${NGHTTP2_VERSION}/nghttp2-${NGHTTP2_VERSION}.tar.gz | tar zxf - -C /tmp/nghttp2 --strip-components=1 \
   && cd /tmp/nghttp2 \
@@ -97,7 +99,7 @@ RUN mkdir /tmp/jpeg \
   && curl -sfL https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${LIBJPEG_TURBO_VERSION}.tar.gz | tar zxf - -C /tmp/jpeg --strip-components=1 \
   && cd /tmp/jpeg \
   && mkdir build && cd build \
-  && cmake3 .. \
+  && cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
     -DCMAKE_INSTALL_LIBDIR:PATH=lib \
@@ -128,7 +130,7 @@ ENV LERC_VERSION=2.2.1
 RUN mkdir /tmp/lerc \
   && curl -sfL https://github.com/Esri/lerc/archive/v${LERC_VERSION}.tar.gz | tar zxf - -C /tmp/lerc --strip-components=1 \
   && cd /tmp/lerc \
-  && cmake3 . \
+  && cmake . \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
     -DCMAKE_INSTALL_LIBDIR:PATH=lib \
@@ -170,7 +172,7 @@ RUN mkdir /tmp/openjpeg \
   && curl -sfL https://github.com/uclouvain/openjpeg/archive/v${OPENJPEG_VERSION}.tar.gz | tar zxf - -C /tmp/openjpeg --strip-components=1 \
   && cd /tmp/openjpeg \
   && mkdir build && cd build \
-  && cmake3 .. \
+  && cmake .. \
     -DBUILD_THIRDPARTY:BOOL=ON \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
@@ -186,7 +188,7 @@ RUN mkdir /tmp/geos \
   && curl -sfL https://github.com/libgeos/geos/archive/refs/tags/${GEOS_VERSION}.tar.gz | tar zxf - -C /tmp/geos --strip-components=1 \
   && cd /tmp/geos \
   && mkdir build && cd build \
-  && cmake3 .. \
+  && cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
     -DCMAKE_INSTALL_LIBDIR:PATH=lib \
@@ -212,7 +214,7 @@ RUN mkdir /tmp/proj && mkdir /tmp/proj/data \
   && curl -sfL https://github.com/OSGeo/proj/archive/${PROJ_VERSION}.tar.gz | tar zxf - -C /tmp/proj --strip-components=1 \
   && cd /tmp/proj \
   && mkdir build && cd build \
-  && cmake3 .. \
+  && cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
     -DCMAKE_INSTALL_LIBDIR:PATH=lib \
@@ -243,7 +245,7 @@ ENV BLOSC_VERSION=1.21.0
 RUN mkdir /tmp/blosc \
   && curl -sfL https://github.com/Blosc/c-blosc/archive/refs/tags/v${BLOSC_VERSION}.tar.gz | tar zxf - -C /tmp/blosc --strip-components=1 \
   && cd /tmp/blosc \
-  && cmake3 -G"Unix Makefiles" \
+  && cmake -G"Unix Makefiles" \
     -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
     -DCMAKE_INSTALL_LIBDIR:PATH=lib \
     -DCMAKE_INSTALL_RPATH="$ORIGIN" \
@@ -283,7 +285,7 @@ ENV HDF4_VERSION=4.2.15
 RUN mkdir /tmp/hdf4 \
   && curl -sfL https://support.hdfgroup.org/ftp/HDF/releases/HDF${HDF4_VERSION}/src/hdf-${HDF4_VERSION}.tar | tar xvf - -C /tmp/hdf4 --strip-components=1 \
   && cd /tmp/hdf4 \
-  && CFLAGS="-O2 -Wl,-S" CXXFLAGS="-O2 -Wl,-S" ./configure \
+  && CFLAGS="-O2 -Wl,-S" CXXFLAGS="-O2 -Wl,-S" CPPFLAGS="-I/usr/include/tirpc" LIBS="-ltirpc" ./configure \
   --prefix=$PREFIX \
   --with-szlib=$PREFIX \
   --with-jpeg=$PREFIX \
@@ -334,15 +336,21 @@ RUN mkdir /tmp/netcdf \
 #   && make -j $(nproc) install && make clean \
 #   && rm -rf /tmp/libhwy
 
-# # brotli
-# ENV BROTLI_VERSION=1.0.9
-# RUN mkdir /tmp/brotli \
-#   && curl -sfL https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz | tar zxf - -C /tmp/brotli --strip-components=1 \
-#   && cd /tmp/brotli \
-#   && mkdir build && cd build \
-#   && CFLAGS="-O2 -Wl,-S" CXXFLAGS="-O2 -Wl,-S" ../configure-cmake --prefix=$PREFIX \
-#   && make -j $(nproc) --silent && make install && make clean \
-#   && rm -rf /tmp/brotli
+# brotli
+ENV BROTLI_VERSION=1.2.0
+RUN mkdir /tmp/brotli \
+  && curl -sfL https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz | tar zxf - -C /tmp/brotli --strip-components=1 \
+  && cd /tmp/brotli \
+  && mkdir build && cd build \
+  && cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=$PREFIX \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_C_FLAGS="-O2 -Wl,-S" \
+    -DCMAKE_CXX_FLAGS="-O2 -Wl,-S" \
+  && cmake --build . -j $(nproc) \
+  && cmake --build . --target install \
+  && rm -rf /tmp/brotli
 
 # # # JpegXL
 # ENV JXL_VERSION=0.8.1
@@ -364,7 +372,7 @@ RUN mkdir /tmp/gdal \
   && curl -sfL https://github.com/OSGeo/gdal/archive/refs/tags/v${GDAL_VERSION}.tar.gz | tar zxf - -C /tmp/gdal --strip-components=1 \
   && cd /tmp/gdal \
   && mkdir build && cd build \
-  && cmake3 .. \
+  && cmake .. \
     -DGDAL_USE_EXTERNAL_LIBS=ON \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX \
@@ -380,7 +388,8 @@ RUN mkdir /tmp/gdal \
     -DPNG_PNG_INCLUDE_DIR=$PREFIX/include \
     -DPNG_LIBRARY_RELEASE=$PREFIX/lib/libpng.so \
     -DBUILD_PYTHON_BINDINGS=OFF \
-  && make -j $(nproc) --silent && make install \
+  && cmake --build . -j $(nproc) \
+  && cmake --build . --target install \
   && rm -rf /tmp/gdal
 
 # from https://github.com/pypa/manylinux/blob/d8ef5d47433ba771fa4403fd48f352c586e06e43/docker/build_scripts/build.sh#L133-L138
@@ -401,8 +410,11 @@ RUN rm -f $PREFIX/lib/libturbojpeg.so* \
 RUN for i in $PREFIX/bin/*; do patchelf --force-rpath --set-rpath '$ORIGIN/../lib' $i; done
 RUN for i in $PREFIX/lib/*.so; do patchelf --force-rpath --set-rpath '$ORIGIN' $i; done
 
+# hdf4 needs libtrc headers so copy these over
+RUN cp /usr/lib64/libtirpc.so* $PREFIX/lib/
+
 # Build final image
-FROM public.ecr.aws/lambda/provided:al2 AS runner
+FROM public.ecr.aws/lambda/provided:al2023 AS runner
 
 ENV PREFIX=/opt
 COPY --from=builder /opt/lib/ $PREFIX/lib/
