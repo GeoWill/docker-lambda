@@ -15,8 +15,10 @@ on:
   pull_request:
 
 env:
-  GDAL_VERSION: 3.8.3
-  GDAL_VERSION_TAG: 3.8
+  GDAL_VERSION_AL2: 3.8.3
+  GDAL_VERSION_TAG_AL2: 3.8
+  GDAL_VERSION_AL2023: 3.11.5
+  GDAL_VERSION_TAG_AL2023: 3.11
 
 jobs:
   build:
@@ -45,7 +47,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build
+      - name: Build AL2
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64
@@ -53,18 +55,40 @@ jobs:
           load: true
           file: dockerfiles/Dockerfile
           build-args: |
-            GDAL_VERSION=${{ env.GDAL_VERSION }}
-          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            GDAL_VERSION=${{ env.GDAL_VERSION_AL2 }}
+          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2
+          cache-from: type=gha,scope=al2
+          cache-to: type=gha,mode=max,scope=al2
 
-      - name: Test
+      - name: Build AL2023
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64
+          context: .
+          load: true
+          file: dockerfiles/Dockerfile.al2023
+          build-args: |
+            GDAL_VERSION=${{ env.GDAL_VERSION_AL2023 }}
+          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023
+          cache-from: type=gha,scope=al2023
+          cache-to: type=gha,mode=max,scope=al2023
+
+      - name: Test AL2
         run: |
           docker run \
             --platform=linux/amd64 \
             --entrypoint bash \
             -v ${{ github.workspace }}:/local \
-            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }} \
+            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2 \
+            /local/tests/tests.sh
+
+      - name: Test AL2023
+        run: |
+          docker run \
+            --platform=linux/amd64 \
+            --entrypoint bash \
+            -v ${{ github.workspace }}:/local \
+            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 \
             /local/tests/tests.sh
 
   deploy:
@@ -96,57 +120,81 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Publish docker image
+      - name: Publish AL2 docker image
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64
           context: .
           file: dockerfiles/Dockerfile
           build-args: |
-            GDAL_VERSION=${{ env.GDAL_VERSION }}
+            GDAL_VERSION=${{ env.GDAL_VERSION_AL2 }}
           push: true
-          cache-from: type=gha
-          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }}
+          cache-from: type=gha,scope=al2
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2
+            ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}
 
-      - name: Build and Deploy layers
+      - name: Publish AL2023 docker image
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64
+          context: .
+          file: dockerfiles/Dockerfile.al2023
+          build-args: |
+            GDAL_VERSION=${{ env.GDAL_VERSION_AL2023 }}
+          push: true
+          cache-from: type=gha,scope=al2023
+          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023
+
+      - name: Build and Deploy layers (AL2)
         run: |
           python -m pip install boto3 click
           docker run \
             --platform=linux/amd64 \
             --entrypoint bash \
             -v ${{ github.workspace }}:/local \
-            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }} \
+            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2 \
             /local/scripts/create-layer.sh
-          python scripts/deploy.py ${{ env.GDAL_VERSION_TAG }} --deploy
+          python scripts/deploy.py ${{ env.GDAL_VERSION_TAG_AL2 }} --deploy
 
-      - name: Build Runtime and Push Python <=3.11 with yum
+      - name: Build and Deploy layers (AL2023)
         run: |
-          runtimes='3.9 3.10 3.11'
+          docker run \
+            --platform=linux/amd64 \
+            --entrypoint bash \
+            -v ${{ github.workspace }}:/local \
+            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 \
+            /local/scripts/create-layer.sh
+          python scripts/deploy.py ${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 --deploy
+
+      - name: Build Runtime and Push Python 3.10-3.11 (AL2)
+        run: |
+          runtimes='3.10 3.11'
           for runtime in ${runtimes}; do
             docker build \
               --platform=linux/amd64 \
-              --build-arg GDAL_VERSION_TAG=${{ env.GDAL_VERSION_TAG }} \
+              --build-arg GDAL_VERSION_TAG=${{ env.GDAL_VERSION_TAG_AL2 }}-al2 \
               --build-arg RUNTIME_VERSION=${runtime} \
               --build-arg NUMPY_VERSION=1.25 \
               --build-arg PKG_INSTALLER=yum \
               -f dockerfiles/runtimes/python \
-              -t ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }}-python${runtime} .
-            docker push ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }}-python${runtime}
+              -t ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-python${runtime} .
+            docker push ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-python${runtime}
           done
 
-      - name: Build Runtime and Push Python >= 3.12 with dnf
+      - name: Build Runtime and Push Python 3.12-3.14 (AL2023)
         run: |
-          runtimes='3.12 3.13'
+          runtimes='3.12 3.13 3.14'
           for runtime in ${runtimes}; do
             docker build \
               --platform=linux/amd64 \
-              --build-arg GDAL_VERSION_TAG=${{ env.GDAL_VERSION_TAG }} \
+              --build-arg GDAL_VERSION_TAG=${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 \
               --build-arg RUNTIME_VERSION=${runtime} \
-              --build-arg NUMPY_VERSION=1.26 \
+              --build-arg NUMPY_VERSION=2.3.5 \
               --build-arg PKG_INSTALLER=dnf \
               -f dockerfiles/runtimes/python \
-              -t ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }}-python${runtime} .
-            docker push ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG }}-python${runtime}
+              -t ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-python${runtime} .
+            docker push ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-python${runtime}
           done
 
   update-layer:
