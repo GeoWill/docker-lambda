@@ -4,6 +4,7 @@ LABEL maintainer="lambgeo <geolambdas@gmail.com>"
 
 # AL2023 uses dnf instead of yum, and automake instead of automake16
 # cmake is available directly (not cmake3)
+# libtirpc-devel provides RPC headers needed by HDF4
 RUN dnf update -y && \
     dnf install -y git autoconf libtool flex bison cmake make \
       tar gzip gcc gcc-c++ automake libpng-devel nasm libtirpc-devel \
@@ -11,11 +12,11 @@ RUN dnf update -y && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
-ENV PREFIX /opt
+ENV PREFIX=/opt
 
 WORKDIR /opt
 
-ENV LD_LIBRARY_PATH $PREFIX/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
 
 # pkg-config
 ENV PKGCONFIG_VERSION=0.29.2
@@ -415,7 +416,7 @@ RUN cp /usr/lib64/libtirpc.so* $PREFIX/lib/
 # Build final image
 FROM public.ecr.aws/lambda/provided:al2023 AS runner
 
-ENV PREFIX /opt
+ENV PREFIX=/opt
 COPY --from=builder /opt/lib/ $PREFIX/lib/
 COPY --from=builder /opt/include/ $PREFIX/include/
 COPY --from=builder /opt/share/ $PREFIX/share/
