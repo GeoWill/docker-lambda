@@ -27,6 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set registry owner
+        run: |
+          owner="${{ github.repository_owner }}"
+          echo "REGISTRY_OWNER=${owner,,}" >> $GITHUB_ENV
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -56,7 +61,7 @@ jobs:
           file: dockerfiles/Dockerfile
           build-args: |
             GDAL_VERSION=${{ env.GDAL_VERSION_AL2 }}
-          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2
+          tags: ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2
           cache-from: type=gha,scope=al2
           cache-to: type=gha,mode=max,scope=al2
 
@@ -69,7 +74,7 @@ jobs:
           file: dockerfiles/Dockerfile.al2023
           build-args: |
             GDAL_VERSION=${{ env.GDAL_VERSION_AL2023 }}
-          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023
+          tags: ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023
           cache-from: type=gha,scope=al2023
           cache-to: type=gha,mode=max,scope=al2023
 
@@ -79,7 +84,7 @@ jobs:
             --platform=linux/amd64 \
             --entrypoint bash \
             -v ${{ github.workspace }}:/local \
-            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2 \
+            --rm ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2 \
             /local/tests/tests.sh
 
       - name: Test AL2023
@@ -88,7 +93,7 @@ jobs:
             --platform=linux/amd64 \
             --entrypoint bash \
             -v ${{ github.workspace }}:/local \
-            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 \
+            --rm ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 \
             /local/tests/tests.sh
 
   deploy:
@@ -97,6 +102,11 @@ jobs:
     if: contains(github.ref, 'tags') && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set registry owner
+        run: |
+          owner="${{ github.repository_owner }}"
+          echo "REGISTRY_OWNER=${owner,,}" >> $GITHUB_ENV
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -131,8 +141,8 @@ jobs:
           push: true
           cache-from: type=gha,scope=al2
           tags: |
-            ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2
-            ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}
+            ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2
+            ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}
 
       - name: Publish AL2023 docker image
         uses: docker/build-push-action@v6
@@ -144,7 +154,7 @@ jobs:
             GDAL_VERSION=${{ env.GDAL_VERSION_AL2023 }}
           push: true
           cache-from: type=gha,scope=al2023
-          tags: ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023
+          tags: ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023
 
       - name: Build and Deploy layers (AL2)
         run: |
@@ -153,7 +163,7 @@ jobs:
             --platform=linux/amd64 \
             --entrypoint bash \
             -v ${{ github.workspace }}:/local \
-            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2 \
+            --rm ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-al2 \
             /local/scripts/create-layer.sh
           python scripts/deploy.py ${{ env.GDAL_VERSION_TAG_AL2 }} --deploy
 
@@ -163,7 +173,7 @@ jobs:
             --platform=linux/amd64 \
             --entrypoint bash \
             -v ${{ github.workspace }}:/local \
-            --rm ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 \
+            --rm ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 \
             /local/scripts/create-layer.sh
           python scripts/deploy.py ${{ env.GDAL_VERSION_TAG_AL2023 }}-al2023 --deploy
 
@@ -178,8 +188,8 @@ jobs:
               --build-arg NUMPY_VERSION=1.25 \
               --build-arg PKG_INSTALLER=yum \
               -f dockerfiles/runtimes/python \
-              -t ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-python${runtime} .
-            docker push ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-python${runtime}
+              -t ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-python${runtime} .
+            docker push ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2 }}-python${runtime}
           done
 
       - name: Build Runtime and Push Python 3.12-3.14 (AL2023)
@@ -193,8 +203,8 @@ jobs:
               --build-arg NUMPY_VERSION=2.3.5 \
               --build-arg PKG_INSTALLER=dnf \
               -f dockerfiles/runtimes/python \
-              -t ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-python${runtime} .
-            docker push ghcr.io/${{ github.repository_owner }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-python${runtime}
+              -t ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-python${runtime} .
+            docker push ghcr.io/${{ env.REGISTRY_OWNER }}/lambda-gdal:${{ env.GDAL_VERSION_TAG_AL2023 }}-python${runtime}
           done
 
   update-layer:
