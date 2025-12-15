@@ -284,7 +284,7 @@ ENV HDF4_VERSION=4.2.15
 RUN mkdir /tmp/hdf4 \
   && curl -sfL https://support.hdfgroup.org/ftp/HDF/releases/HDF${HDF4_VERSION}/src/hdf-${HDF4_VERSION}.tar | tar xvf - -C /tmp/hdf4 --strip-components=1 \
   && cd /tmp/hdf4 \
-  && CFLAGS="-O2 -Wl,-S" CXXFLAGS="-O2 -Wl,-S" ./configure \
+  && CFLAGS="-O2 -Wl,-S" CXXFLAGS="-O2 -Wl,-S" CPPFLAGS="-I/usr/include/tirpc" LIBS="-ltirpc" ./configure \
   --prefix=$PREFIX \
   --with-szlib=$PREFIX \
   --with-jpeg=$PREFIX \
