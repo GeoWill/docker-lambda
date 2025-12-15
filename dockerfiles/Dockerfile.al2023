@@ -335,15 +335,21 @@ RUN mkdir /tmp/netcdf \
 #   && make -j $(nproc) install && make clean \
 #   && rm -rf /tmp/libhwy
 
-# # brotli
-# ENV BROTLI_VERSION=1.0.9
-# RUN mkdir /tmp/brotli \
-#   && curl -sfL https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz | tar zxf - -C /tmp/brotli --strip-components=1 \
-#   && cd /tmp/brotli \
-#   && mkdir build && cd build \
-#   && CFLAGS="-O2 -Wl,-S" CXXFLAGS="-O2 -Wl,-S" ../configure-cmake --prefix=$PREFIX \
-#   && make -j $(nproc) --silent && make install && make clean \
-#   && rm -rf /tmp/brotli
+# brotli
+ENV BROTLI_VERSION=1.2.0
+RUN mkdir /tmp/brotli \
+  && curl -sfL https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz | tar zxf - -C /tmp/brotli --strip-components=1 \
+  && cd /tmp/brotli \
+  && mkdir build && cd build \
+  && cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=$PREFIX \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_C_FLAGS="-O2 -Wl,-S" \
+    -DCMAKE_CXX_FLAGS="-O2 -Wl,-S" \
+  && cmake --build . -j $(nproc) \
+  && cmake --build . --target install \
+  && rm -rf /tmp/brotli
 
 # # # JpegXL
 # ENV JXL_VERSION=0.8.1
