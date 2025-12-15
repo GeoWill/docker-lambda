@@ -6,7 +6,7 @@ LABEL maintainer="lambgeo <geolambdas@gmail.com>"
 # cmake is available directly (not cmake3)
 RUN dnf update -y && \
     dnf install -y git autoconf libtool flex bison cmake make \
-      tar gzip gcc gcc-c++ automake libpng-devel nasm \
+      tar gzip gcc gcc-c++ automake libpng-devel nasm libtirpc-devel \
       libxml2-devel readline-devel openssl-devel curl-devel && \
     dnf clean all && \
     rm -rf /var/cache/dnf
@@ -402,6 +402,9 @@ RUN rm -f $PREFIX/lib/libturbojpeg.so* \
 # FIX
 RUN for i in $PREFIX/bin/*; do patchelf --force-rpath --set-rpath '$ORIGIN/../lib' $i; done
 RUN for i in $PREFIX/lib/*.so; do patchelf --force-rpath --set-rpath '$ORIGIN' $i; done
+
+# hdf4 needs libtrc headers so copy these over
+RUN cp /usr/lib64/libtirpc.so* $PREFIX/lib/
 
 # Build final image
 FROM public.ecr.aws/lambda/provided:al2023 AS runner
