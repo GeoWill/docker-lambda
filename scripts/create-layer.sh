@@ -3,7 +3,12 @@ echo "-----------------------"
 echo "Creating lambda layer"
 echo "-----------------------"
 
-yum install -y zip binutils
+# Use dnf if available (AL2023), otherwise yum (AL2)
+if command -v dnf &> /dev/null; then
+    dnf install -y zip binutils findutils
+else
+    yum install -y zip binutils
+fi
 
 echo "Remove useless files"
 rm -rdf $PREFIX/share/doc \
